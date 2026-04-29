@@ -14,7 +14,8 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 db_path="${TETRIS_DB:-$script_dir/tetris_scores.sqlite3}"
 player_name=""
 score_saved=0
-final_total=""
+best_score=""
+score_result=""
 current_piece_name=""
 log_limit=6
 logs=()
@@ -46,8 +47,11 @@ cleanup() {
         stty echo icanon 2>/dev/null || true
     fi
     printf "%s. Score: %s\n" "$message" "$score"
-    if [[ -n "$player_name" && -n "$final_total" ]]; then
-        printf "Player: %s. Total score: %s\n" "$player_name" "$final_total"
+    if [[ -n "$player_name" && -n "$best_score" ]]; then
+        printf "Player: %s. Best score: %s\n" "$player_name" "$best_score"
+        if [[ -n "$score_result" ]]; then
+            printf "%s\n" "$score_result"
+        fi
     fi
     exit
 }
@@ -81,7 +85,7 @@ show_top_players() {
         LIMIT $count;
     ")
 
-    echo "Top $count players:"
+    echo "Top $count players by best score:"
     if [[ -n "$rows" ]]; then
         echo "$rows"
     else
@@ -137,17 +141,29 @@ login_player() {
 }
 
 save_score() {
+    local old_best
+
     if (( score_saved )) || [[ -z "$player_name" ]]; then
         return
     fi
 
-    sqlite3 "$db_path" "
-        UPDATE players
-        SET score = score + $score,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE name = '$player_name';
-    "
-    final_total=$(sqlite3 "$db_path" "SELECT score FROM players WHERE name = '$player_name';")
+    old_best=$(sqlite3 "$db_path" "SELECT score FROM players WHERE name = '$player_name';")
+    old_best=${old_best:-0}
+
+    if (( score > old_best )); then
+        sqlite3 "$db_path" "
+            UPDATE players
+            SET score = $score,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE name = '$player_name';
+        "
+        best_score=$score
+        score_result="New record! Previous best: $old_best"
+    else
+        best_score=$old_best
+        score_result="Record unchanged."
+    fi
+
     score_saved=1
 }
 
