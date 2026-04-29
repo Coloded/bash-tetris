@@ -115,7 +115,7 @@ Before the game starts, you can choose one of four speed levels:
 4. Hard   - the fastest mode
 ```
 
-In Easy mode, the game gives the player a little help. If the board has a vertical empty gap at least 3 cells deep, the game may give an `I` piece so the gap is easier to fill.
+In Easy mode, the game gives the player a little help. It evaluates possible pieces against the current board and may choose a piece that improves the position or clears lines. If there is a vertical empty gap at least 3 cells deep, the game can still prefer an `I` piece for that gap.
 
 ## Database Reset
 
@@ -169,6 +169,18 @@ Restart keeps the same player, selected speed level, and saved best score. The c
 
 Before restarting, the game checks the current score and saves it as a new best score if the record has been beaten.
 
+After game over, press `R` to restart or `Q` to quit.
+
+## Status Bar
+
+The game shows a status line with the current state:
+
+```text
+Playing
+Paused
+GAME OVER - R restart / Q quit
+```
+
 ## Scoring
 
 Points are awarded only for cleared lines:
@@ -193,6 +205,7 @@ An event log is shown in the fixed left-side panel. It shows what happens during
 - how many points were awarded;
 - when pause was enabled or disabled;
 - when the game was restarted;
+- when the game is over;
 - when a new best score was saved.
 
 Example log entries:
@@ -205,7 +218,23 @@ Cleared 3 lines +6 points
 Pause on
 Pause off
 Game restarted
+Game over
 New best score saved: 24
+```
+
+## Piece Statistics
+
+The side panel shows how many times each piece has appeared in the current game:
+
+```text
+Stats:
+I: 2
+O: 1
+T: 4
+S: 0
+Z: 3
+J: 1
+L: 2
 ```
 
 ## Database

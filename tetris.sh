@@ -18,6 +18,8 @@ score_result=""
 current_piece_name=""
 log_limit=28
 logs=()
+status_message="Playing"
+shape_counts=(0 0 0 0 0 0 0)
 
 board=()
 for ((i=0; i<rows*cols; i++)); do board[$i]="."; done
@@ -275,10 +277,88 @@ restart_game() {
     reset_board
     score=0
     paused=0
+    status_message="Playing"
     score_result=""
     logs=()
     add_log "Game restarted"
     new_piece
+}
+
+has_blocks() {
+    local i
+    for ((i=0; i<rows*cols; i++)); do
+        [[ "${board[$i]}" != "." ]] && return 0
+    done
+    return 1
+}
+
+drop_y_for_shape() {
+    local sh="$1"
+    local x0=$2
+    local y0=0
+
+    can_move "$x0" "$y0" "$sh" || return 1
+    while can_move "$x0" $((y0 + 1)) "$sh"; do
+        y0=$((y0 + 1))
+    done
+    printf "%s" "$y0"
+}
+
+count_lines_with_shape() {
+    local sh="$1"
+    local x0=$2
+    local y0=$3
+    local r c b x y full occupied count=0
+
+    for ((r=0; r<rows; r++)); do
+        full=1
+        for ((c=0; c<cols; c++)); do
+            occupied=0
+            [[ "${board[$((r * cols + c))]}" != "." ]] && occupied=1
+            if (( ! occupied )); then
+                for b in $sh; do
+                    x=${b%,*}
+                    y=${b#*,}
+                    if (( x0 + x == c && y0 + y == r )); then
+                        occupied=1
+                        break
+                    fi
+                done
+            fi
+            if (( ! occupied )); then
+                full=0
+                break
+            fi
+        done
+        (( full )) && count=$((count + 1))
+    done
+    printf "%s" "$count"
+}
+
+smart_easy_piece_index() {
+    local idx sh x0 y0 lines score best_score=-999 best_idx=-1 max_x b bx
+
+    has_blocks || return 1
+    for ((idx=0; idx<${#shapes[@]}; idx++)); do
+        sh="${shapes[$idx]}"
+        max_x=0
+        for b in $sh; do
+            bx=${b%,*}
+            (( bx > max_x )) && max_x=$bx
+        done
+        for ((x0=0; x0<cols-max_x; x0++)); do
+            y0=$(drop_y_for_shape "$sh" "$x0") || continue
+            lines=$(count_lines_with_shape "$sh" "$x0" "$y0")
+            score=$((lines * 100 + y0))
+            if (( score > best_score )); then
+                best_score=$score
+                best_idx=$idx
+            fi
+        done
+    done
+
+    (( best_idx >= 0 )) || return 1
+    printf "%s" "$best_idx"
 }
 
 is_solid_cell() {
@@ -331,7 +411,9 @@ easy_should_give_i_piece() {
 new_piece() {
     local index helped=0
 
-    if [[ "$level_name" == "Easy" ]] && easy_should_give_i_piece; then
+    if [[ "$level_name" == "Easy" ]] && index=$(smart_easy_piece_index); then
+        helped=1
+    elif [[ "$level_name" == "Easy" ]] && easy_should_give_i_piece; then
         index=0
         helped=1
     else
@@ -340,10 +422,11 @@ new_piece() {
 
     shape="${shapes[$index]}"
     current_piece_name="${shape_names[$index]}"
+    shape_counts[$index]=$((shape_counts[$index] + 1))
     px=3
     py=0
     if ! can_move "$px" "$py" "$shape"; then
-        cleanup "Game over"
+        game_over_menu
     fi
 
     if (( helped )); then
@@ -351,6 +434,27 @@ new_piece() {
     else
         add_log "Figure: $current_piece_name"
     fi
+}
+
+game_over_menu() {
+    local key
+
+    status_message="GAME OVER - R restart / Q quit"
+    add_log "Game over"
+    save_score
+    while true; do
+        draw
+        IFS= read -rsn1 key || true
+        case "$key" in
+            r|R)
+                restart_game
+                return
+                ;;
+            q|Q)
+                cleanup "Game over"
+                ;;
+        esac
+    done
 }
 
 rotate_piece() {
@@ -628,6 +732,8 @@ draw() {
     left_lines+=("$(panel_line "R         : restart" "$left_width")")
     left_lines+=("$(panel_line "Q         : quit" "$left_width")")
     left_lines+=("$(panel_border "$left_width")")
+    left_lines+=("$(panel_line "Status: $status_message" "$left_width")")
+    left_lines+=("$(panel_border "$left_width")")
     left_lines+=("$(panel_line "Event log" "$left_width")")
     left_lines+=("$(panel_border "$left_width")")
 
@@ -643,6 +749,12 @@ draw() {
             left_lines+=("$(panel_line "$log_text" "$left_width")")
         done
     fi
+
+    left_lines+=("$(panel_line "" "$left_width")")
+    left_lines+=("$(panel_line "Stats:" "$left_width")")
+    for ((i=0; i<${#shape_names[@]}; i++)); do
+        left_lines+=("$(panel_line "${shape_names[$i]}: ${shape_counts[$i]}" "$left_width")")
+    done
 
     while (( ${#left_lines[@]} < game_height - 1 )); do
         left_lines+=("$(panel_line "" "$left_width")")
@@ -669,9 +781,11 @@ handle_input() {
         " ")
             if (( paused )); then
                 paused=0
+                status_message="Playing"
                 add_log "Pause off"
             else
                 paused=1
+                status_message="Paused"
                 add_log "Pause on"
             fi
             ;;

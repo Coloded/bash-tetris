@@ -228,6 +228,8 @@ class Game:
         self.score = 0
         self.logs = []
         self.paused = False
+        self.game_over = False
+        self.shape_stats = {name: 0 for name in SHAPES}
         self.last_fall = time.monotonic()
         self.piece_name = ""
         self.shape = []
@@ -245,6 +247,7 @@ class Game:
         self.score = 0
         self.paused = False
         self.logs = ["Game restarted"]
+        self.game_over = False
         self.new_piece()
 
     def save_best(self):
@@ -275,30 +278,80 @@ class Game:
             return False
         return self.board[r][c] != "."
 
-    def easy_wants_i(self):
-        if self.level != "Easy" or not any(cell != "." for row in self.board for cell in row):
-            return False
+    def normalized(self, shape):
+        min_x = min(x for x, _ in shape)
+        min_y = min(y for _, y in shape)
+        return tuple(sorted((x - min_x, y - min_y) for x, y in shape))
+
+    def rotations(self, shape):
+        variants = []
+        current = self.normalized(shape)
+        for _ in range(4):
+            if current not in variants:
+                variants.append(current)
+            current = self.normalized([(1 - y, x) for x, y in current])
+        return variants
+
+    def drop_y_for(self, shape, x0):
+        y = 0
+        if not self.can_place(x0, y, shape):
+            return None
+        while self.can_place(x0, y + 1, shape):
+            y += 1
+        return y
+
+    def board_after(self, piece, shape, x0, y0):
+        data = [row[:] for row in self.board]
+        for x, y in shape:
+            data[y0 + y][x0 + x] = piece
+        return data
+
+    def board_score(self, data):
+        full = sum(1 for row in data if all(cell != "." for cell in row))
+        heights = []
+        holes = 0
         for c in range(COLS):
-            depth = 0
-            for r in range(ROWS - 1, -1, -1):
-                if self.board[r][c] == "." and self.is_solid(r, c - 1) and self.is_solid(r, c + 1):
-                    depth += 1
-                    if depth >= 3:
-                        return True
-                else:
-                    depth = 0
-        return False
+            seen = False
+            height = 0
+            for r in range(ROWS):
+                if data[r][c] != ".":
+                    if not seen:
+                        height = ROWS - r
+                    seen = True
+                elif seen:
+                    holes += 1
+            heights.append(height)
+        roughness = sum(abs(heights[i] - heights[i + 1]) for i in range(COLS - 1))
+        return full * 100 - holes * 8 - max(heights) * 2 - roughness
+
+    def smart_easy_piece(self):
+        if self.level != "Easy" or not any(cell != "." for row in self.board for cell in row):
+            return None
+        best = None
+        for piece, base in SHAPES.items():
+            for shape in self.rotations(base):
+                width = max(x for x, _ in shape) + 1
+                for x0 in range(COLS - width + 1):
+                    y0 = self.drop_y_for(shape, x0)
+                    if y0 is None:
+                        continue
+                    score = self.board_score(self.board_after(piece, shape, x0, y0))
+                    if best is None or score > best[0]:
+                        best = (score, piece)
+        return best[1] if best else None
 
     def new_piece(self):
         names = list(SHAPES)
-        self.piece_name = "I" if self.easy_wants_i() else random.choice(names)
+        easy_piece = self.smart_easy_piece()
+        self.piece_name = easy_piece or random.choice(names)
         self.shape = SHAPES[self.piece_name][:]
         self.px = 3
         self.py = 0
         self.last_fall = time.monotonic()
         if not self.can_place(self.px, self.py, self.shape):
             raise RuntimeError("game over")
-        suffix = " (Easy help)" if self.level == "Easy" and self.piece_name == "I" and self.easy_wants_i() else ""
+        self.shape_stats[self.piece_name] += 1
+        suffix = " (Easy help)" if easy_piece else ""
         self.log(f"Figure: {self.piece_name}{suffix}")
 
     def rotate(self):
@@ -334,6 +387,13 @@ class Game:
             self.save_best()
 
     def handle_key(self, ch):
+        if self.game_over:
+            if ch in (ord("r"), ord("R")):
+                self.reset()
+                return True
+            if ch in (ord("q"), ord("Q")):
+                return False
+            return True
         if ch in (ord("q"), ord("Q")):
             return False
         if ch == ord(" "):
@@ -357,7 +417,7 @@ class Game:
         return True
 
     def tick(self):
-        if not self.paused and time.monotonic() - self.last_fall >= self.fall_delay:
+        if not self.game_over and not self.paused and time.monotonic() - self.last_fall >= self.fall_delay:
             self.last_fall = time.monotonic()
             self.advance()
 
@@ -388,13 +448,15 @@ class Game:
         safe_addstr(s, 11, 2, "+------------------------------------+")
         safe_addstr(s, 12, 2, "| Event log                          |")
         safe_addstr(s, 13, 2, "+------------------------------------+")
+        stat_lines = ["", "Stats:"] + [f"{k}: {self.shape_stats[k]}" for k in SHAPES]
+        visible = (self.logs + stat_lines)[-28:]
         for i in range(28):
-            text = self.logs[i] if i < len(self.logs) else ""
+            text = visible[i] if i < len(visible) else ""
             safe_addstr(s, 14 + i, 2, f"| {text[:34]:<34} |")
         safe_addstr(s, 42, 2, "+------------------------------------+")
 
         ox, oy = 44, 1
-        state = "PAUSED" if self.paused else "Q quit"
+        state = "GAME OVER" if self.game_over else ("PAUSED" if self.paused else "Playing")
         safe_addstr(s, oy, ox, f"Score: {self.score}   Best: {self.best}   Speed: {self.level}   {state}")
         safe_addstr(s, oy + 1, ox, "+" + "-" * (COLS * 2) + "+")
         active = self.occupied()
@@ -406,7 +468,11 @@ class Game:
             safe_addstr(s, oy + 2 + r, ox + 1 + COLS * 2, "|")
         if self.paused:
             safe_addstr(s, oy + 11, ox + 8, "PAUSE", curses.A_REVERSE)
+        if self.game_over:
+            safe_addstr(s, oy + 10, ox + 5, "GAME OVER", curses.A_REVERSE)
+            safe_addstr(s, oy + 12, ox + 3, "R restart / Q quit")
         safe_addstr(s, oy + 2 + ROWS, ox, "+" + "-" * (COLS * 2) + "+")
+        safe_addstr(s, oy + 4 + ROWS, ox, f"Status: {state}")
         s.refresh()
 
 
@@ -450,10 +516,13 @@ def run(stdscr):
             ch = stdscr.getch()
             if ch != -1:
                 running = game.handle_key(ch)
-            game.tick()
+            try:
+                game.tick()
+            except RuntimeError:
+                game.game_over = True
+                game.save_best()
+                game.log("Game over")
             game.draw()
-    except RuntimeError:
-        result = "Game over."
     except (KeyboardInterrupt, UserExit):
         result = "Interrupted."
 
