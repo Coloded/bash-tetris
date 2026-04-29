@@ -2,6 +2,20 @@
 
 Bash Tetris is a terminal-based Tetris-style game written in Bash. It runs directly in the console, draws the game board in fullscreen mode, and stores local player records in SQLite.
 
+## Screenshots
+
+![Start screen](screenshots/screenshot-01.png)
+
+![Speed selection](screenshots/screenshot-02.png)
+
+![Player login](screenshots/screenshot-03.png)
+
+![Gameplay](screenshots/screenshot-04.png)
+
+![Pause mode](screenshots/screenshot-05.png)
+
+![Side event log](screenshots/screenshot-06.png)
+
 ## Pieces
 
 The game has 7 pieces:
