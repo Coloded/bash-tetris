@@ -1,8 +1,19 @@
 # Bash Tetris
 
-Bash Tetris is a terminal-based Tetris-style game written in Bash. It runs directly in the console, draws the game board in fullscreen mode, and stores local player records in SQLite.
+Bash Tetris is a terminal-based Tetris-style game. It runs directly in the console, draws the game board in fullscreen mode, and stores local player records in SQLite.
 
-The repository also includes `tetris.py`, a Python/curses version of the same game. The Python version is the smoother option because curses can update the terminal screen without the heavy full-screen redraw used by Bash.
+## Versions
+
+This repository includes two playable versions:
+
+```text
+tetris.sh - Bash version
+tetris.py - Python/curses version
+```
+
+The Bash version is the original implementation. It is simple and portable, but terminal redraws can flicker in some environments.
+
+The Python version uses curses and is the smoother option. It can update the terminal screen more cleanly without the heavy full-screen redraw used by Bash.
 
 ## Screenshots
 
