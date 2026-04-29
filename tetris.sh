@@ -13,11 +13,13 @@ cell_height=2
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 db_path="${TETRIS_DB:-$script_dir/tetris_scores.sqlite3}"
 player_name=""
+player_pin=""
 best_score=""
 score_result=""
 current_piece_name=""
 log_limit=6
 logs=()
+reset_confirm=0
 
 board=()
 for ((i=0; i<rows*cols; i++)); do board[$i]="."; done
@@ -112,6 +114,7 @@ login_player() {
 
             if [[ "$pin" == "$existing_pin" ]]; then
                 player_name="$name"
+                player_pin="$pin"
                 best_score=$(sqlite3 "$db_path" "SELECT score FROM players WHERE name = '$player_name';")
                 best_score=${best_score:-0}
                 return
@@ -137,6 +140,7 @@ login_player() {
             VALUES ('$name', '$pin', 0);
         "
         player_name="$name"
+        player_pin="$pin"
         best_score=0
         return
     done
@@ -221,8 +225,30 @@ restart_game() {
     score=0
     paused=0
     score_result=""
+    reset_confirm=0
     logs=()
     add_log "Game restarted"
+    new_piece
+}
+
+reset_database_and_game() {
+    rm -f -- "$db_path"
+    init_db
+    if [[ -n "$player_name" && -n "$player_pin" ]]; then
+        sqlite3 "$db_path" "
+            INSERT INTO players (name, pin, score)
+            VALUES ('$player_name', '$player_pin', 0);
+        "
+    fi
+    reset_board
+    score=0
+    best_score=0
+    paused=0
+    score_result="All records deleted."
+    reset_confirm=0
+    logs=()
+    add_log "Database reset"
+    add_log "All records deleted"
     new_piece
 }
 
@@ -492,7 +518,7 @@ draw() {
     done
 
     draw_centered_line "$border"
-    draw_centered_line "S/left move left | F/right move right | Down drops | D rotate | Space pause | R restart | Q quit"
+    draw_centered_line "S/left move left | F/right move right | D/up rotate | Down drops | Space pause | R restart | P reset DB | Q quit"
     draw_centered_line "Log:"
     if (( ${#logs[@]} == 0 )); then
         draw_centered_line "No events yet."
@@ -516,6 +542,7 @@ read_key() {
 handle_input() {
     case "$key" in
         " ")
+            reset_confirm=0
             if (( paused )); then
                 paused=0
                 add_log "Pause off"
@@ -525,31 +552,45 @@ handle_input() {
             fi
             ;;
         s|S|$'\e[D')
+            reset_confirm=0
             (( paused )) && return
             if can_move $((px - 1)) "$py" "$shape"; then
                 px=$((px - 1))
             fi
             ;;
         f|F|$'\e[C')
+            reset_confirm=0
             (( paused )) && return
             if can_move $((px + 1)) "$py" "$shape"; then
                 px=$((px + 1))
             fi
             ;;
         $'\e[B')
+            reset_confirm=0
             (( paused )) && return
             if can_move "$px" $((py + 1)) "$shape"; then
                 py=$((py + 1))
             fi
             ;;
-        d|D)
+        d|D|$'\e[A')
+            reset_confirm=0
             (( paused )) && return
             rotate_piece
             ;;
         r|R)
+            reset_confirm=0
             restart_game
             ;;
+        p|P)
+            if (( reset_confirm )); then
+                reset_database_and_game
+            else
+                reset_confirm=1
+                add_log "Press P again to delete all records"
+            fi
+            ;;
         q|Q)
+            reset_confirm=0
             cleanup "Quit"
             ;;
     esac

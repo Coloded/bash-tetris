@@ -80,14 +80,15 @@ In Easy mode, the game gives the player a little help. If the board has a vertic
 ```text
 S or Left Arrow   - move left
 F or Right Arrow  - move right
-D                 - rotate piece
+D or Up Arrow     - rotate piece
 Down Arrow        - move down
 Space             - pause / resume
 R                 - restart the current game
+P                 - reset the database and start from zero
 Q                 - quit
 ```
 
-Letter commands are case-insensitive. For example, `s` and `S` both move left, `r` and `R` both restart the game, and `q` and `Q` both quit.
+Letter commands are case-insensitive. For example, `s` and `S` both move left, `f` and `F` both move right, `d` and `D` both rotate, `r` and `R` both restart the game, `p` and `P` both reset the database, and `q` and `Q` both quit.
 
 ## Pause
 
@@ -104,6 +105,14 @@ Press `R` or `r` to restart the current game.
 Restart keeps the same player, selected speed level, and saved best score. The current board is cleared, the current score is reset to zero, pause mode is turned off, and a new piece appears.
 
 Before restarting, the game checks the current score and saves it as a new best score if the record has been beaten.
+
+## Database Reset
+
+Press `P` or `p` to reset the local database and start from zero.
+
+Because this deletes all saved players and records, the game asks for confirmation in the event log. Press `P` or `p` once to request the reset, then press `P` or `p` again to confirm it.
+
+After confirmation, the database file is deleted and recreated automatically. All saved records are removed, the current board is cleared, the current score is reset to zero, and the current player is recreated with a best score of zero.
 
 ## Scoring
 
@@ -129,6 +138,8 @@ An event log is shown at the bottom of the screen. It shows what happens during 
 - how many points were awarded;
 - when pause was enabled or disabled;
 - when the game was restarted;
+- when the database reset confirmation is requested;
+- when all saved records are deleted;
 - when a new best score was saved.
 
 Example log entries:
@@ -141,6 +152,9 @@ Cleared 3 lines +6 points
 Pause on
 Pause off
 Game restarted
+Press P again to delete all records
+Database reset
+All records deleted
 New best score saved: 24
 ```
 
