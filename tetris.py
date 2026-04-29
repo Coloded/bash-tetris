@@ -33,6 +33,10 @@ SPEEDS = {
 PIECE_COLORS = {"I": 1, "O": 2, "T": 3, "S": 4, "Z": 5, "J": 6, "L": 7}
 
 
+class UserExit(Exception):
+    pass
+
+
 def safe_addstr(stdscr, y, x, text, attr=0):
     try:
         stdscr.addstr(y, x, text, attr)
@@ -92,85 +96,98 @@ def reset_database():
 
 
 def prompt(stdscr, y, x, label, hidden=False):
-    curses.curs_set(1)
-    stdscr.nodelay(False)
     chars = []
 
     def redraw():
         value = "*" * len(chars) if hidden else "".join(chars)
         stdscr.move(y, x)
         stdscr.clrtoeol()
-        stdscr.addstr(y, x, label + value)
+        safe_addstr(stdscr, y, x, label + value)
         stdscr.move(y, x + len(label) + len(value))
         stdscr.refresh()
 
-    curses.noecho()
-    redraw()
+    try:
+        curses.curs_set(1)
+        curses.noecho()
+        stdscr.nodelay(False)
+        redraw()
 
-    while True:
-        ch = stdscr.getch()
-        if ch in (10, 13):
-            break
-        if ch in (27,):
-            chars = []
-            break
-        if ch in (curses.KEY_BACKSPACE, 127, 8):
-            if chars:
-                chars.pop()
+        while True:
+            ch = stdscr.getch()
+            if ch in (10, 13):
+                break
+            if ch in (27,):
+                chars = []
+                break
+            if ch in (curses.KEY_BACKSPACE, 127, 8):
+                if chars:
+                    chars.pop()
+                    redraw()
+                continue
+            if 32 <= ch <= 126:
+                chars.append(chr(ch))
                 redraw()
-            continue
-        if 32 <= ch <= 126:
-            chars.append(chr(ch))
-            redraw()
-    curses.noecho()
-    curses.curs_set(0)
-    stdscr.nodelay(True)
+    except KeyboardInterrupt as exc:
+        raise UserExit from exc
+    finally:
+        curses.noecho()
+        try:
+            curses.curs_set(0)
+        except curses.error:
+            pass
+        stdscr.nodelay(True)
     return "".join(chars)
 
 
 def draw_start(stdscr):
     stdscr.nodelay(False)
-    while True:
-        stdscr.clear()
-        stdscr.addstr(1, 2, "Bash Tetris")
-        stdscr.addstr(3, 2, "Top 100 players by best score:")
-        rows = top_players()
-        if rows:
-            for i, (name, score) in enumerate(rows[:18], start=1):
-                stdscr.addstr(4 + i, 2, f"{i:>3}. {name:<20} {score}")
-        else:
-            stdscr.addstr(5, 2, "No players yet.")
-        stdscr.addstr(25, 2, "Enter: choose speed")
-        stdscr.addstr(26, 2, "P: reset local database")
-        stdscr.refresh()
-        ch = stdscr.getch()
-        if ch in (10, 13):
-            return
-        if ch in (ord("p"), ord("P")):
-            answer = prompt(stdscr, 28, 2, "Delete all local players and scores? (y/n): ")
-            if answer[:1].lower() == "y":
-                reset_database()
-                stdscr.addstr(30, 2, "Database deleted and recreated. Top is empty now.")
+    try:
+        while True:
+            stdscr.clear()
+            safe_addstr(stdscr, 1, 2, "Bash Tetris")
+            safe_addstr(stdscr, 3, 2, "Top 100 players by best score:")
+            rows = top_players()
+            if rows:
+                for i, (name, score) in enumerate(rows[:18], start=1):
+                    safe_addstr(stdscr, 4 + i, 2, f"{i:>3}. {name:<20} {score}")
             else:
-                stdscr.addstr(30, 2, "Database reset cancelled.")
-            stdscr.addstr(31, 2, "Press any key...")
-            stdscr.getch()
+                safe_addstr(stdscr, 5, 2, "No players yet.")
+            safe_addstr(stdscr, 25, 2, "Enter: choose speed")
+            safe_addstr(stdscr, 26, 2, "P: reset local database")
+            stdscr.refresh()
+            ch = stdscr.getch()
+            if ch in (10, 13):
+                return
+            if ch in (ord("p"), ord("P")):
+                answer = prompt(stdscr, 28, 2, "Delete all local players and scores? (y/n): ")
+                if answer[:1].lower() == "y":
+                    reset_database()
+                    safe_addstr(stdscr, 30, 2, "Database deleted and recreated. Top is empty now.")
+                else:
+                    safe_addstr(stdscr, 30, 2, "Database reset cancelled.")
+                safe_addstr(stdscr, 31, 2, "Press any key...")
+                stdscr.getch()
+    except KeyboardInterrupt as exc:
+        raise UserExit from exc
 
 
 def choose_speed(stdscr):
     stdscr.nodelay(False)
-    while True:
-        stdscr.clear()
-        stdscr.addstr(1, 2, "Select speed:")
-        stdscr.addstr(3, 2, "1) Easy   - very calm")
-        stdscr.addstr(4, 2, "2) Normal - calm")
-        stdscr.addstr(5, 2, "3) Medium - focused")
-        stdscr.addstr(6, 2, "4) Hard   - quick")
-        stdscr.refresh()
-        ch = stdscr.getch()
-        key = chr(ch) if 0 <= ch < 256 else ""
-        if key in SPEEDS:
-            return SPEEDS[key]
+    try:
+        while True:
+            stdscr.clear()
+            safe_addstr(stdscr, 1, 2, "Select speed:")
+            safe_addstr(stdscr, 3, 2, "1) Easy   - very calm")
+            safe_addstr(stdscr, 4, 2, "2) Normal - calm")
+            safe_addstr(stdscr, 5, 2, "3) Medium - focused")
+            safe_addstr(stdscr, 6, 2, "4) Hard   - quick")
+            stdscr.refresh()
+            ch = stdscr.getch()
+            key = chr(ch) if 0 <= ch < 256 else ""
+            if key in SPEEDS:
+                return SPEEDS[key]
+    except KeyboardInterrupt as exc:
+        raise UserExit from exc
 
 
 def login(stdscr):
@@ -410,18 +427,22 @@ def init_colors():
 
 
 def run(stdscr):
-    random.seed()
-    curses.curs_set(0)
-    stdscr.keypad(True)
-    stdscr.nodelay(True)
-    stdscr.timeout(30)
-    init_colors()
-    init_db()
-    draw_start(stdscr)
-    level, delay = choose_speed(stdscr)
-    player, best = login(stdscr)
-    stdscr.nodelay(True)
-    game = Game(stdscr, player, best, level, delay)
+    try:
+        random.seed()
+        curses.curs_set(0)
+        stdscr.keypad(True)
+        stdscr.nodelay(True)
+        stdscr.timeout(30)
+        init_colors()
+        init_db()
+        draw_start(stdscr)
+        level, delay = choose_speed(stdscr)
+        player, best = login(stdscr)
+        stdscr.nodelay(True)
+        game = Game(stdscr, player, best, level, delay)
+    except (KeyboardInterrupt, UserExit):
+        return "Interrupted.", 0, "", 0, ""
+
     result = "Quit."
     try:
         running = True
@@ -433,7 +454,7 @@ def run(stdscr):
             game.draw()
     except RuntimeError:
         result = "Game over."
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, UserExit):
         result = "Interrupted."
 
     save_message = game.save_best()
@@ -444,7 +465,9 @@ if __name__ == "__main__":
     try:
         result, score, player, best, save_message = curses.wrapper(run)
         print(f"{result} Score: {score}")
-        print(f"Player: {player}. Best score: {best}")
-        print(save_message)
+        if player:
+            print(f"Player: {player}. Best score: {best}")
+        if save_message:
+            print(save_message)
     except KeyboardInterrupt:
         print("Interrupted.")
