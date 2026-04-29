@@ -210,6 +210,22 @@ add_log() {
     done
 }
 
+reset_board() {
+    board=()
+    for ((i=0; i<rows*cols; i++)); do board[$i]="."; done
+}
+
+restart_game() {
+    save_score
+    reset_board
+    score=0
+    paused=0
+    score_result=""
+    logs=()
+    add_log "Game restarted"
+    new_piece
+}
+
 is_solid_cell() {
     local r=$1
     local c=$2
@@ -476,7 +492,7 @@ draw() {
     done
 
     draw_centered_line "$border"
-    draw_centered_line "S/left move left | F/right move right | Down drops | D rotate | Space pause | Q quit"
+    draw_centered_line "S/left move left | F/right move right | Down drops | D rotate | Space pause | R restart | Q quit"
     draw_centered_line "Log:"
     if (( ${#logs[@]} == 0 )); then
         draw_centered_line "No events yet."
@@ -529,6 +545,9 @@ handle_input() {
         d|D)
             (( paused )) && return
             rotate_piece
+            ;;
+        r|R)
+            restart_game
             ;;
         q|Q)
             cleanup "Quit"

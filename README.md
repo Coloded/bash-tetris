@@ -83,8 +83,11 @@ F or Right Arrow  - move right
 D                 - rotate piece
 Down Arrow        - move down
 Space             - pause / resume
+R                 - restart the current game
 Q                 - quit
 ```
+
+Letter commands are case-insensitive. For example, `s` and `S` both move left, `r` and `R` both restart the game, and `q` and `Q` both quit.
 
 ## Pause
 
@@ -93,6 +96,14 @@ The game has a pause mode. Press `Space` to pause or resume.
 While paused, the piece stops falling, movement controls are temporarily disabled, and `PAUSE` appears in the center of the board.
 
 Pause mode is useful when you need to step away, answer the phone, or take a short break without losing the current game.
+
+## Restart
+
+Press `R` or `r` to restart the current game.
+
+Restart keeps the same player, selected speed level, and saved best score. The current board is cleared, the current score is reset to zero, pause mode is turned off, and a new piece appears.
+
+Before restarting, the game checks the current score and saves it as a new best score if the record has been beaten.
 
 ## Scoring
 
@@ -117,6 +128,7 @@ An event log is shown at the bottom of the screen. It shows what happens during 
 - how many lines were cleared;
 - how many points were awarded;
 - when pause was enabled or disabled;
+- when the game was restarted;
 - when a new best score was saved.
 
 Example log entries:
@@ -128,6 +140,7 @@ Cleared 1 line +1 point
 Cleared 3 lines +6 points
 Pause on
 Pause off
+Game restarted
 New best score saved: 24
 ```
 
