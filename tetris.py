@@ -85,13 +85,21 @@ def reset_database():
 
 
 def prompt(stdscr, y, x, label, hidden=False):
-    curses.echo()
     curses.curs_set(1)
     stdscr.nodelay(False)
-    stdscr.addstr(y, x, label)
-    stdscr.clrtoeol()
-    stdscr.refresh()
     chars = []
+
+    def redraw():
+        value = "*" * len(chars) if hidden else "".join(chars)
+        stdscr.move(y, x)
+        stdscr.clrtoeol()
+        stdscr.addstr(y, x, label + value)
+        stdscr.move(y, x + len(label) + len(value))
+        stdscr.refresh()
+
+    curses.noecho()
+    redraw()
+
     while True:
         ch = stdscr.getch()
         if ch in (10, 13):
@@ -102,12 +110,11 @@ def prompt(stdscr, y, x, label, hidden=False):
         if ch in (curses.KEY_BACKSPACE, 127, 8):
             if chars:
                 chars.pop()
-                stdscr.addstr(y, x + len(label) + len(chars), " ")
-                stdscr.move(y, x + len(label) + len(chars))
+                redraw()
             continue
         if 32 <= ch <= 126:
             chars.append(chr(ch))
-            stdscr.addstr("*" if hidden else chr(ch))
+            redraw()
     curses.noecho()
     curses.curs_set(0)
     stdscr.nodelay(True)
