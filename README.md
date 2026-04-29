@@ -25,8 +25,6 @@ The Python version uses curses and is the smoother option. It can update the ter
 
 ![Gameplay](screenshots/screenshot-04.png)
 
-![Pause mode](screenshots/screenshot-05.png)
-
 ![Side event log](screenshots/screenshot-06.png)
 
 ## Pieces
