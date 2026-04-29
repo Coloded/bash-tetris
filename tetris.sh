@@ -16,7 +16,7 @@ player_name=""
 best_score=""
 score_result=""
 current_piece_name=""
-log_limit=6
+log_limit=28
 logs=()
 
 board=()
@@ -454,20 +454,67 @@ draw_centered_line() {
     printf "%*s%s\n" "$pad" "" "$line"
 }
 
-draw_blank_lines() {
-    local height top
+center_text_in_width() {
+    local text="$1"
+    local width=$2
+    local left right
 
-    height=$(tput lines 2>/dev/null || echo 24)
-    top=$(((height - rows * cell_height - 6) / 2))
-    (( top < 0 )) && top=0
-    for ((i=0; i<top; i++)); do printf "\n"; done
+    if (( ${#text} > width )); then
+        text="${text:0:width}"
+    fi
+
+    left=$(((width - ${#text}) / 2))
+    right=$((width - ${#text} - left))
+    printf "%*s%s%*s" "$left" "" "$text" "$right" ""
+}
+
+panel_line() {
+    local text="$1"
+    local width=$2
+    local inner=$((width - 4))
+
+    if (( ${#text} > inner )); then
+        text="${text:0:inner}"
+    fi
+
+    printf "| %-*s |" "$inner" "$text"
+}
+
+panel_border() {
+    local width=$1
+    local line="+"
+    local i
+
+    for ((i=0; i<width-2; i++)); do line+="-"; done
+    line+="+"
+    printf "%s" "$line"
+}
+
+draw_layout_line() {
+    local left="$1"
+    local right="$2"
+    local total_width=$3
+    local terminal_width
+    local pad
+
+    terminal_width=$(tput cols 2>/dev/null || echo 100)
+    pad=$(((terminal_width - total_width) / 2))
+    (( pad < 0 )) && pad=0
+    printf "%*s%s    %s\n" "$pad" "" "$left" "$right"
 }
 
 draw() {
     local r c h b x y cell line border header center_text pause_pad pause_line
+    local left_width=38
+    local board_width=$((cols * cell_width + 2))
+    local total_width=$((left_width + 4 + board_width))
+    local game_height=$((rows * cell_height + 3))
+    local -a left_lines=()
+    local -a game_lines=()
+    local i log_start log_index log_text
 
     printf "\e[H\e[2J"
-    draw_blank_lines
+    for ((i=0; i<2; i++)); do printf "\n"; done
 
     if (( paused )); then
         header="Score: $score   Best: ${best_score:-0}   Speed: $level_name   PAUSED"
@@ -478,8 +525,8 @@ draw() {
     for ((c=0; c<cols*cell_width; c++)); do border+="-"; done
     border+="+"
 
-    draw_centered_line "$header"
-    draw_centered_line "$border"
+    game_lines+=("$(center_text_in_width "$header" "$board_width")")
+    game_lines+=("$border")
 
     for ((r=0; r<rows; r++)); do
         if (( paused && r == rows / 2 )); then
@@ -489,7 +536,7 @@ draw() {
             pause_line="|"
             printf -v pause_line "%s%*s%s%*s|" "$pause_line" "$pause_pad" "" "$center_text" "$((cols * cell_width - pause_pad - ${#center_text}))" ""
             for ((h=0; h<cell_height; h++)); do
-                draw_centered_line "$pause_line"
+                game_lines+=("$pause_line")
             done
             continue
         fi
@@ -516,20 +563,47 @@ draw() {
 
         line+="|"
         for ((h=0; h<cell_height; h++)); do
-            draw_centered_line "$line"
+            game_lines+=("$line")
         done
     done
 
-    draw_centered_line "$border"
-    draw_centered_line "S/left move left | F/right move right | D/up rotate | Down drops | Space pause | R restart | Q quit"
-    draw_centered_line "Log:"
+    game_lines+=("$border")
+
+    left_lines+=("$(panel_border "$left_width")")
+    left_lines+=("$(panel_line "Controls" "$left_width")")
+    left_lines+=("$(panel_border "$left_width")")
+    left_lines+=("$(panel_line "S / Left  : move left" "$left_width")")
+    left_lines+=("$(panel_line "F / Right : move right" "$left_width")")
+    left_lines+=("$(panel_line "D / Up    : rotate" "$left_width")")
+    left_lines+=("$(panel_line "Down      : move down" "$left_width")")
+    left_lines+=("$(panel_line "Space     : pause / resume" "$left_width")")
+    left_lines+=("$(panel_line "R         : restart" "$left_width")")
+    left_lines+=("$(panel_line "Q         : quit" "$left_width")")
+    left_lines+=("$(panel_border "$left_width")")
+    left_lines+=("$(panel_line "Event log" "$left_width")")
+    left_lines+=("$(panel_border "$left_width")")
+
     if (( ${#logs[@]} == 0 )); then
-        draw_centered_line "No events yet."
+        left_lines+=("$(panel_line "No events yet." "$left_width")")
     else
-        for line in "${logs[@]}"; do
-            draw_centered_line "$line"
+        log_start=0
+        if (( ${#logs[@]} > log_limit )); then
+            log_start=$((${#logs[@]} - log_limit))
+        fi
+        for ((log_index=log_start; log_index<${#logs[@]}; log_index++)); do
+            log_text="${logs[$log_index]}"
+            left_lines+=("$(panel_line "$log_text" "$left_width")")
         done
     fi
+
+    while (( ${#left_lines[@]} < game_height - 1 )); do
+        left_lines+=("$(panel_line "" "$left_width")")
+    done
+    left_lines+=("$(panel_border "$left_width")")
+
+    for ((i=0; i<game_height; i++)); do
+        draw_layout_line "${left_lines[$i]}" "${game_lines[$i]}" "$total_width"
+    done
 }
 
 read_key() {

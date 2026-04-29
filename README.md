@@ -142,7 +142,7 @@ The `I` piece is 5 cells long, so clearing 5 lines at once is possible.
 
 ## Event Log
 
-An event log is shown at the bottom of the screen. It shows what happens during the game:
+An event log is shown in the fixed left-side panel. It shows what happens during the game without changing the height of the game board:
 
 - which piece appeared;
 - when Easy mode help was used;
