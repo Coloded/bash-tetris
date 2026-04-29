@@ -4,9 +4,7 @@ rows=20
 cols=10
 score=0
 level_name="Normal"
-key_timeout=0.03
-fall_ticks=47
-fall_counter=0
+delay=0.7
 running=1
 paused=0
 stty_state=$(stty -g 2>/dev/null || true)
@@ -187,10 +185,10 @@ choose_speed() {
         choice=${choice:0:1}
 
         case "$choice" in
-            1) fall_ticks=80; level_name="Easy"; return ;;
-            2) fall_ticks=47; level_name="Normal"; return ;;
-            3) fall_ticks=27; level_name="Medium"; return ;;
-            4) fall_ticks=13; level_name="Hard"; return ;;
+            1) delay=2.4; level_name="Easy"; return ;;
+            2) delay=1.4; level_name="Normal"; return ;;
+            3) delay=0.8; level_name="Medium"; return ;;
+            4) delay=0.4; level_name="Hard"; return ;;
             *) echo "Use 1, 2, 3, or 4."; sleep 1 ;;
         esac
     done
@@ -276,7 +274,6 @@ restart_game() {
     save_score
     reset_board
     score=0
-    fall_counter=0
     paused=0
     score_result=""
     logs=()
@@ -343,7 +340,6 @@ new_piece() {
 
     shape="${shapes[$index]}"
     current_piece_name="${shape_names[$index]}"
-    fall_counter=0
     px=3
     py=0
     if ! can_move "$px" "$py" "$shape"; then
@@ -660,7 +656,7 @@ draw() {
 
 read_key() {
     key=""
-    IFS= read -rsn1 -t "$key_timeout" key || true
+    IFS= read -rsn1 -t "$delay" key || true
 
     if [[ "$key" == $'\e' ]]; then
         IFS= read -rsn2 -t 0.01 rest || true
@@ -695,7 +691,6 @@ handle_input() {
             (( paused )) && return
             if can_move "$px" $((py + 1)) "$shape"; then
                 py=$((py + 1))
-                fall_counter=0
             fi
             ;;
         d|D|$'\e[A')
@@ -727,9 +722,5 @@ while (( running )); do
         continue
     fi
 
-    fall_counter=$((fall_counter + 1))
-    if (( fall_counter >= fall_ticks )); then
-        fall_counter=0
-        advance_piece
-    fi
+    advance_piece
 done

@@ -2,3 +2,5 @@ tetris_scores.sqlite3
 *.sqlite3
 *.db
 .DS_Store
+__pycache__/
+*.pyc

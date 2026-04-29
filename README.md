@@ -2,6 +2,8 @@
 
 Bash Tetris is a terminal-based Tetris-style game written in Bash. It runs directly in the console, draws the game board in fullscreen mode, and stores local player records in SQLite.
 
+The repository also includes `tetris.py`, a Python/curses version of the same game. The Python version is the smoother option because curses can update the terminal screen without the heavy full-screen redraw used by Bash.
+
 ## Screenshots
 
 ![Start screen](screenshots/screenshot-01.png)
@@ -138,8 +140,6 @@ Q                 - quit
 
 Letter commands are case-insensitive. For example, `s` and `S` both move left, `f` and `F` both move right, `d` and `D` both rotate, `r` and `R` both restart the game, and `q` and `Q` both quit.
 
-Keyboard input is checked on a short fixed tick, while falling speed is handled by a separate counter. This keeps controls responsive even on slower speed levels.
-
 When rotating near a wall, the game tries several small horizontal shifts before rejecting the rotation. This makes wall rotation more forgiving.
 
 ## Pause
@@ -257,6 +257,14 @@ tetris_scores.sqlite3
 
 ## Run
 
+Bash version:
+
 ```bash
 ./tetris.sh
+```
+
+Python/curses version:
+
+```bash
+python3 tetris.py
 ```
