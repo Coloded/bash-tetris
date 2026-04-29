@@ -13,7 +13,6 @@ cell_height=2
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 db_path="${TETRIS_DB:-$script_dir/tetris_scores.sqlite3}"
 player_name=""
-score_saved=0
 best_score=""
 score_result=""
 current_piece_name=""
@@ -113,6 +112,8 @@ login_player() {
 
             if [[ "$pin" == "$existing_pin" ]]; then
                 player_name="$name"
+                best_score=$(sqlite3 "$db_path" "SELECT score FROM players WHERE name = '$player_name';")
+                best_score=${best_score:-0}
                 return
             fi
 
@@ -136,6 +137,7 @@ login_player() {
             VALUES ('$name', '$pin', 0);
         "
         player_name="$name"
+        best_score=0
         return
     done
 }
@@ -143,11 +145,14 @@ login_player() {
 save_score() {
     local old_best
 
-    if (( score_saved )) || [[ -z "$player_name" ]]; then
+    if [[ -z "$player_name" ]]; then
         return
     fi
 
-    old_best=$(sqlite3 "$db_path" "SELECT score FROM players WHERE name = '$player_name';")
+    old_best=${best_score:-}
+    if [[ -z "$old_best" ]]; then
+        old_best=$(sqlite3 "$db_path" "SELECT score FROM players WHERE name = '$player_name';")
+    fi
     old_best=${old_best:-0}
 
     if (( score > old_best )); then
@@ -158,13 +163,12 @@ save_score() {
             WHERE name = '$player_name';
         "
         best_score=$score
-        score_result="New record! Previous best: $old_best"
-    else
+        score_result="New record saved! Previous best: $old_best"
+        add_log "New best score saved: $best_score"
+    elif [[ -z "$score_result" ]]; then
         best_score=$old_best
         score_result="Record unchanged."
     fi
-
-    score_saved=1
 }
 
 choose_speed() {
@@ -390,6 +394,7 @@ clear_lines() {
         else
             add_log "Cleared $cleared lines +$points points"
         fi
+        save_score
     fi
 }
 
@@ -420,9 +425,9 @@ draw() {
     draw_blank_lines
 
     if (( paused )); then
-        header="Score: $score   Speed: $level_name   PAUSED"
+        header="Score: $score   Best: ${best_score:-0}   Speed: $level_name   PAUSED"
     else
-        header="Score: $score   Speed: $level_name   Q quit"
+        header="Score: $score   Best: ${best_score:-0}   Speed: $level_name   Q quit"
     fi
     border="+"
     for ((c=0; c<cols*cell_width; c++)); do border+="-"; done
