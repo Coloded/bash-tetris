@@ -62,6 +62,19 @@ L - an L-shaped piece
 [][]
 ```
 
+## Start Screen
+
+When the game starts, it first shows the top 100 players by best score.
+
+From this screen:
+
+```text
+Enter - continue to speed selection
+P     - reset local database
+```
+
+`P` / `p` works only on this start screen. It does not work during gameplay, while entering a player name, or on the speed selection screen.
+
 ## Speed Levels
 
 Before the game starts, you can choose one of four speed levels:
@@ -71,12 +84,11 @@ Before the game starts, you can choose one of four speed levels:
 2. Normal - regular speed
 3. Medium - faster mode
 4. Hard   - the fastest mode
-P. Reset local database
 ```
 
 In Easy mode, the game gives the player a little help. If the board has a vertical empty gap at least 3 cells deep, the game may give an `I` piece so the gap is easier to fill.
 
-## Start Screen Database Reset
+## Database Reset
 
 On the start screen, before choosing a speed level and before entering a player name, press `P` or `p` to reset the local database.
 

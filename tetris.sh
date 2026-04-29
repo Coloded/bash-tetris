@@ -180,11 +180,8 @@ choose_speed() {
         echo "2) Normal - calm"
         echo "3) Medium - focused"
         echo "4) Hard   - quick"
-        echo "P) Reset local database"
         echo
-        show_top_players 100
-        echo
-        read -rp "Choice (1-4, P): " choice
+        read -rp "Choice (1-4): " choice
         choice=${choice:0:1}
 
         case "$choice" in
@@ -192,8 +189,37 @@ choose_speed() {
             2) delay=1.4; level_name="Normal"; return ;;
             3) delay=0.8; level_name="Medium"; return ;;
             4) delay=0.4; level_name="Hard"; return ;;
-            p|P) reset_database_from_start_screen ;;
-            *) delay=1.4; level_name="Normal"; return ;;
+            *) echo "Use 1, 2, 3, or 4."; sleep 1 ;;
+        esac
+    done
+}
+
+show_start_screen() {
+    local choice
+
+    while true; do
+        clear
+        printf '\e[H'
+        echo "Bash Tetris"
+        echo
+        show_top_players 100
+        echo
+        echo "Press Enter to choose speed."
+        echo "Press P to reset local database."
+        echo
+        read -rp "Start screen: " choice
+        choice=${choice:0:1}
+
+        case "$choice" in
+            "")
+                return
+                ;;
+            p|P)
+                reset_database_from_start_screen
+                ;;
+            *)
+                return
+                ;;
         esac
     done
 }
@@ -659,6 +685,7 @@ handle_input() {
 }
 
 init_db
+show_start_screen
 choose_speed
 login_player
 start_terminal_game_mode
