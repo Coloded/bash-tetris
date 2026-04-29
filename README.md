@@ -20,6 +20,8 @@ Bash Tetris is a terminal-based Tetris-style game written in Bash. It runs direc
 
 The game has 7 pieces:
 
+Each piece has its own color in the terminal. When a piece lands, the board keeps the piece type in each occupied cell, so placed blocks can keep their piece color instead of becoming one generic block.
+
 ```text
 I - a straight 5-cell line
 
@@ -135,6 +137,10 @@ Q                 - quit
 ```
 
 Letter commands are case-insensitive. For example, `s` and `S` both move left, `f` and `F` both move right, `d` and `D` both rotate, `r` and `R` both restart the game, and `q` and `Q` both quit.
+
+Keyboard input is checked on a short fixed tick, while falling speed is handled by a separate counter. This keeps controls responsive even on slower speed levels.
+
+When rotating near a wall, the game tries several small horizontal shifts before rejecting the rotation. This makes wall rotation more forgiving.
 
 ## Pause
 

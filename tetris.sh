@@ -4,7 +4,9 @@ rows=20
 cols=10
 score=0
 level_name="Normal"
-delay=0.7
+key_timeout=0.03
+fall_ticks=47
+fall_counter=0
 running=1
 paused=0
 stty_state=$(stty -g 2>/dev/null || true)
@@ -185,10 +187,10 @@ choose_speed() {
         choice=${choice:0:1}
 
         case "$choice" in
-            1) delay=2.4; level_name="Easy"; return ;;
-            2) delay=1.4; level_name="Normal"; return ;;
-            3) delay=0.8; level_name="Medium"; return ;;
-            4) delay=0.4; level_name="Hard"; return ;;
+            1) fall_ticks=80; level_name="Easy"; return ;;
+            2) fall_ticks=47; level_name="Normal"; return ;;
+            3) fall_ticks=27; level_name="Medium"; return ;;
+            4) fall_ticks=13; level_name="Hard"; return ;;
             *) echo "Use 1, 2, 3, or 4."; sleep 1 ;;
         esac
     done
@@ -274,6 +276,7 @@ restart_game() {
     save_score
     reset_board
     score=0
+    fall_counter=0
     paused=0
     score_result=""
     logs=()
@@ -293,7 +296,7 @@ is_solid_cell() {
         return 1
     fi
 
-    [[ "${board[$((r * cols + c))]}" == "#" ]]
+    [[ "${board[$((r * cols + c))]}" != "." ]]
 }
 
 easy_should_give_i_piece() {
@@ -301,7 +304,7 @@ easy_should_give_i_piece() {
 
     for ((r=0; r<rows; r++)); do
         for ((c=0; c<cols; c++)); do
-            if [[ "${board[$((r * cols + c))]}" == "#" ]]; then
+            if [[ "${board[$((r * cols + c))]}" != "." ]]; then
                 has_block=1
                 break 2
             fi
@@ -340,6 +343,7 @@ new_piece() {
 
     shape="${shapes[$index]}"
     current_piece_name="${shape_names[$index]}"
+    fall_counter=0
     px=3
     py=0
     if ! can_move "$px" "$py" "$shape"; then
@@ -356,7 +360,8 @@ new_piece() {
 rotate_piece() {
     local rotated=""
     local normalized=""
-    local x y nx ny min_x=99 min_y=99
+    local x y nx ny min_x=99 min_y=99 offset
+    local offsets=(0 -1 1 -2 2 -3 3)
 
     for b in $shape; do
         x=${b%,*}
@@ -374,15 +379,13 @@ rotate_piece() {
         normalized+="$((x - min_x)),$((y - min_y)) "
     done
 
-    if can_move "$px" "$py" "$normalized"; then
-        shape="$normalized"
-    elif can_move $((px - 1)) "$py" "$normalized"; then
-        px=$((px - 1))
-        shape="$normalized"
-    elif can_move $((px + 1)) "$py" "$normalized"; then
-        px=$((px + 1))
-        shape="$normalized"
-    fi
+    for offset in "${offsets[@]}"; do
+        if can_move $((px + offset)) "$py" "$normalized"; then
+            px=$((px + offset))
+            shape="$normalized"
+            return
+        fi
+    done
 }
 
 can_move() {
@@ -401,7 +404,7 @@ can_move() {
             return 1
         fi
 
-        if [[ "${board[$((by * cols + bx))]}" == "#" ]]; then
+        if [[ "${board[$((by * cols + bx))]}" != "." ]]; then
             return 1
         fi
     done
@@ -417,8 +420,18 @@ place_piece() {
         y=${b#*,}
         bx=$((px + x))
         by=$((py + y))
-        board[$((by * cols + bx))]="#"
+        board[$((by * cols + bx))]="$current_piece_name"
     done
+}
+
+advance_piece() {
+    if can_move "$px" $((py + 1)) "$shape"; then
+        py=$((py + 1))
+    else
+        place_piece
+        clear_lines
+        new_piece
+    fi
 }
 
 clear_lines() {
@@ -428,7 +441,7 @@ clear_lines() {
         full=1
 
         for ((c=0; c<cols; c++)); do
-            if [[ "${board[$((r * cols + c))]}" != "#" ]]; then
+            if [[ "${board[$((r * cols + c))]}" == "." ]]; then
                 full=0
                 break
             fi
@@ -529,6 +542,23 @@ draw_layout_line() {
     printf "%*s%s    %s\n" "$pad" "" "$left" "$right"
 }
 
+render_cell() {
+    local cell="$1"
+    local reset=$'\e[0m'
+
+    case "$cell" in
+        ".") printf "    " ;;
+        I) printf "\e[36m[][]%s" "$reset" ;;
+        O) printf "\e[33m[][]%s" "$reset" ;;
+        T) printf "\e[35m[][]%s" "$reset" ;;
+        S) printf "\e[32m[][]%s" "$reset" ;;
+        Z) printf "\e[31m[][]%s" "$reset" ;;
+        J) printf "\e[34m[][]%s" "$reset" ;;
+        L) printf "\e[37m[][]%s" "$reset" ;;
+        *) printf "[][]" ;;
+    esac
+}
+
 draw() {
     local r c h b x y cell line border header center_text pause_pad pause_line
     local left_width=38
@@ -576,15 +606,11 @@ draw() {
                 x=${b%,*}
                 y=${b#*,}
                 if (( px + x == c && py + y == r )); then
-                    cell="@"
+                    cell="$current_piece_name"
                 fi
             done
 
-            case "$cell" in
-                ".") line+="    " ;;
-                "@") line+="[][]" ;;
-                "#") line+="####" ;;
-            esac
+            line+="$(render_cell "$cell")"
         done
 
         line+="|"
@@ -634,7 +660,7 @@ draw() {
 
 read_key() {
     key=""
-    IFS= read -rsn1 -t "$delay" key || true
+    IFS= read -rsn1 -t "$key_timeout" key || true
 
     if [[ "$key" == $'\e' ]]; then
         IFS= read -rsn2 -t 0.01 rest || true
@@ -669,6 +695,7 @@ handle_input() {
             (( paused )) && return
             if can_move "$px" $((py + 1)) "$shape"; then
                 py=$((py + 1))
+                fall_counter=0
             fi
             ;;
         d|D|$'\e[A')
@@ -700,11 +727,9 @@ while (( running )); do
         continue
     fi
 
-    if can_move "$px" $((py + 1)) "$shape"; then
-        py=$((py + 1))
-    else
-        place_piece
-        clear_lines
-        new_piece
+    fall_counter=$((fall_counter + 1))
+    if (( fall_counter >= fall_ticks )); then
+        fall_counter=0
+        advance_piece
     fi
 done
