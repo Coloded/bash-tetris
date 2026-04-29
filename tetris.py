@@ -33,6 +33,13 @@ SPEEDS = {
 PIECE_COLORS = {"I": 1, "O": 2, "T": 3, "S": 4, "Z": 5, "J": 6, "L": 7}
 
 
+def safe_addstr(stdscr, y, x, text, attr=0):
+    try:
+        stdscr.addstr(y, x, text, attr)
+    except curses.error:
+        pass
+
+
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
@@ -339,17 +346,17 @@ class Game:
 
     def draw_cell(self, y, x, piece):
         if piece == ".":
-            self.stdscr.addstr(y, x, "  ")
+            safe_addstr(self.stdscr, y, x, "  ")
             return
         color = curses.color_pair(PIECE_COLORS[piece])
-        self.stdscr.addstr(y, x, CELL, color)
+        safe_addstr(self.stdscr, y, x, CELL, color)
 
     def draw(self):
         s = self.stdscr
         s.erase()
-        s.addstr(1, 2, "+------------------------------------+")
-        s.addstr(2, 2, "| Controls                           |")
-        s.addstr(3, 2, "+------------------------------------+")
+        safe_addstr(s, 1, 2, "+------------------------------------+")
+        safe_addstr(s, 2, 2, "| Controls                           |")
+        safe_addstr(s, 3, 2, "+------------------------------------+")
         controls = [
             "S / Left  : move left",
             "F / Right : move right",
@@ -360,29 +367,29 @@ class Game:
             "Q         : quit",
         ]
         for i, text in enumerate(controls, 4):
-            s.addstr(i, 2, f"| {text:<34} |")
-        s.addstr(11, 2, "+------------------------------------+")
-        s.addstr(12, 2, "| Event log                          |")
-        s.addstr(13, 2, "+------------------------------------+")
+            safe_addstr(s, i, 2, f"| {text:<34} |")
+        safe_addstr(s, 11, 2, "+------------------------------------+")
+        safe_addstr(s, 12, 2, "| Event log                          |")
+        safe_addstr(s, 13, 2, "+------------------------------------+")
         for i in range(28):
             text = self.logs[i] if i < len(self.logs) else ""
-            s.addstr(14 + i, 2, f"| {text[:34]:<34} |")
-        s.addstr(42, 2, "+------------------------------------+")
+            safe_addstr(s, 14 + i, 2, f"| {text[:34]:<34} |")
+        safe_addstr(s, 42, 2, "+------------------------------------+")
 
         ox, oy = 44, 1
         state = "PAUSED" if self.paused else "Q quit"
-        s.addstr(oy, ox, f"Score: {self.score}   Best: {self.best}   Speed: {self.level}   {state}")
-        s.addstr(oy + 1, ox, "+" + "-" * (COLS * 2) + "+")
+        safe_addstr(s, oy, ox, f"Score: {self.score}   Best: {self.best}   Speed: {self.level}   {state}")
+        safe_addstr(s, oy + 1, ox, "+" + "-" * (COLS * 2) + "+")
         active = self.occupied()
         for r in range(ROWS):
-            s.addstr(oy + 2 + r, ox, "|")
+            safe_addstr(s, oy + 2 + r, ox, "|")
             for c in range(COLS):
                 piece = self.piece_name if (c, r) in active else self.board[r][c]
                 self.draw_cell(oy + 2 + r, ox + 1 + c * 2, piece)
-            s.addstr(oy + 2 + r, ox + 1 + COLS * 2, "|")
+            safe_addstr(s, oy + 2 + r, ox + 1 + COLS * 2, "|")
         if self.paused:
-            s.addstr(oy + 11, ox + 8, "PAUSE", curses.A_REVERSE)
-        s.addstr(oy + 2 + ROWS, ox, "+" + "-" * (COLS * 2) + "+")
+            safe_addstr(s, oy + 11, ox + 8, "PAUSE", curses.A_REVERSE)
+        safe_addstr(s, oy + 2 + ROWS, ox, "+" + "-" * (COLS * 2) + "+")
         s.refresh()
 
 
@@ -415,7 +422,7 @@ def run(stdscr):
     player, best = login(stdscr)
     stdscr.nodelay(True)
     game = Game(stdscr, player, best, level, delay)
-    result = "Record unchanged."
+    result = "Quit."
     try:
         running = True
         while running:
@@ -426,17 +433,18 @@ def run(stdscr):
             game.draw()
     except RuntimeError:
         result = "Game over."
-    finally:
-        save_message = game.save_best()
-        stdscr.nodelay(False)
-        stdscr.clear()
-        stdscr.addstr(2, 2, f"{result} Score: {game.score}")
-        stdscr.addstr(3, 2, f"Player: {player}. Best score: {game.best}")
-        stdscr.addstr(4, 2, save_message)
-        stdscr.addstr(6, 2, "Press any key to exit.")
-        stdscr.refresh()
-        stdscr.getch()
+    except KeyboardInterrupt:
+        result = "Interrupted."
+
+    save_message = game.save_best()
+    return result, game.score, player, game.best, save_message
 
 
 if __name__ == "__main__":
-    curses.wrapper(run)
+    try:
+        result, score, player, best, save_message = curses.wrapper(run)
+        print(f"{result} Score: {score}")
+        print(f"Player: {player}. Best score: {best}")
+        print(save_message)
+    except KeyboardInterrupt:
+        print("Interrupted.")
