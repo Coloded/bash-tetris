@@ -9,6 +9,8 @@ tick=0
 game_over=0
 ducking=0
 duck_ticks=0
+jump_locked=0
+jump_release_ticks=0
 dino_height=3
 
 obs_x=()
@@ -62,6 +64,8 @@ reset_game() {
     game_over=0
     ducking=0
     duck_ticks=0
+    jump_locked=0
+    jump_release_ticks=0
     dino_y=$ground_y
     jump_v=0
     max_jump_y=$((ground_y - dino_height * 3))
@@ -74,10 +78,12 @@ reset_game() {
 }
 
 start_jump() {
-    if (( dino_y == ground_y )); then
+    if (( dino_y == ground_y && ! jump_locked )); then
         jump_v=-4
         ducking=0
         duck_ticks=0
+        jump_locked=1
+        jump_release_ticks=0
     fi
 }
 
@@ -298,13 +304,17 @@ read_key() {
     fi
 }
 
+is_jump_key() {
+    [[ "$key" == " " || "$key" == $'\e[A' ]]
+}
+
 handle_key() {
     case "$key" in
         " "|$'\e[A')
             if (( ! game_over )); then start_jump; fi
             ;;
         $'\e[B')
-            if (( ! game_over && dino_y == ground_y )); then duck_ticks=3; fi
+            if (( ! game_over && dino_y == ground_y )); then duck_ticks=6; fi
             ;;
         r|R)
             reset_game
@@ -325,6 +335,27 @@ update_ducking() {
     fi
 }
 
+update_jump_lock() {
+    if (( ! jump_locked )); then
+        return
+    fi
+
+    if (( dino_y != ground_y )); then
+        jump_release_ticks=0
+        return
+    fi
+
+    if is_jump_key; then
+        jump_release_ticks=0
+    else
+        jump_release_ticks=$((jump_release_ticks + 1))
+        if (( jump_release_ticks >= 2 )); then
+            jump_locked=0
+            jump_release_ticks=0
+        fi
+    fi
+}
+
 main() {
     printf "\e[?1049h"
     stty -echo 2>/dev/null
@@ -333,15 +364,16 @@ main() {
 
     fit_screen
     reset_game
+    draw
 
     while true; do
-        draw
         read_key
         handle_key
         update_ducking
 
         if (( ! game_over )); then
             update_game
+            update_jump_lock
             tick=$((tick + 1))
 
             case "$speed_level" in
@@ -351,6 +383,8 @@ main() {
                 *) frame_delay=$min_delay ;;
             esac
         fi
+
+        draw
     done
 }
 
