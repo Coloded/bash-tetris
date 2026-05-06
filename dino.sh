@@ -15,6 +15,7 @@ hero_type=1
 hero_name="Human"
 hero_height=3
 hero_width=3
+human_height=3
 
 obs_x=()
 obs_type=()
@@ -129,7 +130,7 @@ reset_game() {
     jump_release_ticks=0
     dino_y=$ground_y
     jump_v=0
-    max_jump_y=$((ground_y - hero_height * 3))
+    max_jump_y=$((ground_y - human_height * 3))
     if (( max_jump_y < 1 )); then
         max_jump_y=1
     fi

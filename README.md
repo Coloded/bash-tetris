@@ -334,3 +334,5 @@ Q                 - quit
 ```
 
 The dinosaur runner has moving cacti and flying birds. The score grows while the dinosaur survives, and the speed increases gradually during the run.
+
+All runners jump to the same maximum height, based on the human runner's height. Smaller runners are lower to the ground, but they can still jump high enough to clear obstacles.
