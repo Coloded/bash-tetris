@@ -4,16 +4,19 @@ Bash Tetris is a terminal-based Tetris-style game. It runs directly in the conso
 
 ## Versions
 
-This repository includes two playable versions:
+This repository includes three playable terminal games:
 
 ```text
 tetris.sh - Bash version
 tetris.py - Python/curses version
+dino.sh   - Bash dinosaur runner
 ```
 
 The Bash version is the original implementation. It is simple and portable, but terminal redraws can flicker in some environments.
 
 The Python version uses curses and is the smoother option. It can update the terminal screen more cleanly without the heavy full-screen redraw used by Bash.
+
+`dino.sh` is a small Bash runner inspired by the browser dinosaur game. It does not use the SQLite database; it starts immediately and keeps the best score only during the current run.
 
 ## Screenshots
 
@@ -306,3 +309,20 @@ Python/curses version:
 ```bash
 python3 tetris.py
 ```
+
+Bash dinosaur runner:
+
+```bash
+./dino.sh
+```
+
+## Dinosaur Runner Controls
+
+```text
+Up Arrow or Space - jump
+Down Arrow        - duck
+R                 - restart after game over
+Q                 - quit
+```
+
+The dinosaur runner has moving cacti and flying birds. The score grows while the dinosaur survives, and the speed increases gradually during the run.
