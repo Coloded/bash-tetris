@@ -8,6 +8,7 @@ min_delay=0.035
 tick=0
 game_over=0
 ducking=0
+duck_ticks=0
 dino_height=3
 
 obs_x=()
@@ -60,6 +61,7 @@ reset_game() {
     tick=0
     game_over=0
     ducking=0
+    duck_ticks=0
     dino_y=$ground_y
     jump_v=0
     max_jump_y=$((ground_y - dino_height * 3))
@@ -75,6 +77,7 @@ start_jump() {
     if (( dino_y == ground_y )); then
         jump_v=-4
         ducking=0
+        duck_ticks=0
     fi
 }
 
@@ -301,7 +304,7 @@ handle_key() {
             if (( ! game_over )); then start_jump; fi
             ;;
         $'\e[B')
-            if (( ! game_over && dino_y == ground_y )); then ducking=1; fi
+            if (( ! game_over && dino_y == ground_y )); then duck_ticks=3; fi
             ;;
         r|R)
             reset_game
@@ -310,6 +313,16 @@ handle_key() {
             cleanup
             ;;
     esac
+}
+
+update_ducking() {
+    if (( dino_y == ground_y && duck_ticks > 0 )); then
+        ducking=1
+        duck_ticks=$((duck_ticks - 1))
+    else
+        ducking=0
+        duck_ticks=0
+    fi
 }
 
 main() {
@@ -324,8 +337,8 @@ main() {
     while true; do
         draw
         read_key
-        ducking=0
         handle_key
+        update_ducking
 
         if (( ! game_over )); then
             update_game
