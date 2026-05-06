@@ -16,7 +16,7 @@ The Bash version is the original implementation. It is simple and portable, but 
 
 The Python version uses curses and is the smoother option. It can update the terminal screen more cleanly without the heavy full-screen redraw used by Bash.
 
-`dino.sh` is a small Bash runner inspired by the browser dinosaur game. It does not use the SQLite database; it starts immediately and keeps the best score only during the current run.
+`dino.sh` is a small Bash runner inspired by the browser dinosaur game. It does not use the SQLite database; it keeps the best score only during the current run.
 
 ## Screenshots
 
@@ -317,6 +317,14 @@ Bash dinosaur runner:
 ```
 
 ## Dinosaur Runner Controls
+
+At startup, choose one of three runners:
+
+```text
+1 - Human
+2 - Dog
+3 - Cockroach
+```
 
 ```text
 Up Arrow or Space - jump

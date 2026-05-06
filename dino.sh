@@ -11,7 +11,10 @@ ducking=0
 duck_ticks=0
 jump_locked=0
 jump_release_ticks=0
-dino_height=3
+hero_type=1
+hero_name="Human"
+hero_height=3
+hero_width=3
 
 obs_x=()
 obs_type=()
@@ -21,7 +24,7 @@ cleanup() {
     tput cnorm 2>/dev/null
     printf "\e[?1049l"
     clear
-    echo "Dino stopped. Score: $score Best: $best"
+    echo "Runner stopped. Score: $score Best: $best"
     exit
 }
 
@@ -56,6 +59,64 @@ fit_screen() {
     dino_x=8
 }
 
+draw_menu() {
+    printf "\e[H"
+    clear
+    echo "Choose runner:"
+    echo
+    echo "1) Human"
+    echo "     o"
+    echo "    /|\\"
+    echo "    / \\"
+    echo
+    echo "2) Dog"
+    echo "    /o_"
+    echo "   /_\\\\"
+    echo
+    echo "3) Cockroach"
+    echo "   /oo\\"
+    echo
+    echo "Q) quit"
+    echo
+    echo -n "Choice (1-3): "
+}
+
+choose_runner() {
+    local choice
+
+    while true; do
+        draw_menu
+        IFS= read -rsn1 choice
+
+        case "$choice" in
+            1)
+                hero_type=1
+                hero_name="Human"
+                hero_height=3
+                hero_width=3
+                return
+                ;;
+            2)
+                hero_type=2
+                hero_name="Dog"
+                hero_height=2
+                hero_width=4
+                return
+                ;;
+            3)
+                hero_type=3
+                hero_name="Cockroach"
+                hero_height=1
+                hero_width=4
+                return
+                ;;
+            q|Q)
+                cleanup
+                ;;
+        esac
+    done
+}
+
 reset_game() {
     score=0
     speed_level=1
@@ -68,7 +129,7 @@ reset_game() {
     jump_release_ticks=0
     dino_y=$ground_y
     jump_v=0
-    max_jump_y=$((ground_y - dino_height * 3))
+    max_jump_y=$((ground_y - hero_height * 3))
     if (( max_jump_y < 1 )); then
         max_jump_y=1
     fi
@@ -116,13 +177,17 @@ obstacle_bounds() {
 dino_bounds() {
     if (( ducking && dino_y == ground_y )); then
         di_left=$dino_x
-        di_right=$((dino_x + 3))
-        di_top=$((ground_y - 1))
+        di_right=$((dino_x + hero_width - 1))
+        if (( hero_type == 1 )); then
+            di_top=$((ground_y - 1))
+        else
+            di_top=$ground_y
+        fi
         di_bottom=$ground_y
     else
         di_left=$dino_x
-        di_right=$((dino_x + 2))
-        di_top=$((dino_y - 2))
+        di_right=$((dino_x + hero_width - 1))
+        di_top=$((dino_y - hero_height + 1))
         di_bottom=$dino_y
     fi
 }
@@ -205,44 +270,7 @@ cell_at() {
         return
     fi
 
-    if (( ducking && dino_y == ground_y )); then
-        if (( r == ground_y - 1 && c >= dino_x && c <= dino_x + 3 )); then
-            case $((c - dino_x)) in
-                0) printf "_" ;;
-                1) printf "o" ;;
-                2) printf "_" ;;
-                3) printf ">" ;;
-            esac
-            return
-        fi
-        if (( r == ground_y && c >= dino_x && c <= dino_x + 3 )); then
-            case $((c - dino_x)) in
-                0) printf "/" ;;
-                1) printf "_" ;;
-                2) printf "_" ;;
-                3) printf "\\" ;;
-            esac
-            return
-        fi
-    else
-        if (( r == dino_y - 2 && c == dino_x + 1 )); then printf "o"; return; fi
-        if (( r == dino_y - 1 && c >= dino_x && c <= dino_x + 2 )); then
-            case $((c - dino_x)) in
-                0) printf "/" ;;
-                1) printf "|" ;;
-                2) printf "\\" ;;
-            esac
-            return
-        fi
-        if (( r == dino_y && c >= dino_x && c <= dino_x + 2 )); then
-            case $((c - dino_x)) in
-                0) printf "/" ;;
-                1) printf " " ;;
-                2) printf "\\" ;;
-            esac
-            return
-        fi
-    fi
+    hero_cell_at "$r" "$c" && return
 
     for ((i=0; i<${#obs_x[@]}; i++)); do
         type=${obs_type[$i]}
@@ -265,11 +293,80 @@ cell_at() {
     fi
 }
 
+hero_cell_at() {
+    local r=$1
+    local c=$2
+    local dx=$((c - dino_x))
+
+    if (( dx < 0 || dx >= hero_width )); then
+        return 1
+    fi
+
+    if (( ducking && dino_y == ground_y )); then
+        case "$hero_type" in
+            1)
+                if (( r == ground_y - 1 )); then
+                    case "$dx" in 0) printf "_" ;; 1) printf "o" ;; 2) printf "_" ;; esac
+                    return 0
+                fi
+                if (( r == ground_y )); then
+                    case "$dx" in 0) printf "/" ;; 1) printf "_" ;; 2) printf "\\" ;; esac
+                    return 0
+                fi
+                ;;
+            2)
+                if (( r == ground_y )); then
+                    case "$dx" in 0) printf "_" ;; 1) printf "o" ;; 2) printf "_" ;; 3) printf ">" ;; esac
+                    return 0
+                fi
+                ;;
+            3)
+                if (( r == ground_y )); then
+                    case "$dx" in 0) printf "_" ;; 1) printf "o" ;; 2) printf "o" ;; 3) printf "_" ;; esac
+                    return 0
+                fi
+                ;;
+        esac
+    else
+        case "$hero_type" in
+            1)
+                if (( r == dino_y - 2 && dx == 1 )); then printf "o"; return 0; fi
+                if (( r == dino_y - 1 )); then
+                    case "$dx" in 0) printf "/" ;; 1) printf "|" ;; 2) printf "\\" ;; esac
+                    return 0
+                fi
+                if (( r == dino_y )); then
+                    case "$dx" in 0) printf "/" ;; 1) printf " " ;; 2) printf "\\" ;; esac
+                    return 0
+                fi
+                ;;
+            2)
+                if (( r == dino_y - 1 )); then
+                    case "$dx" in 0) printf "/" ;; 1) printf "o" ;; 2) printf "_" ;; 3) printf " " ;; esac
+                    return 0
+                fi
+                if (( r == dino_y )); then
+                    case "$dx" in 0) printf "/" ;; 1) printf "_" ;; 2) printf "\\" ;; 3) printf "\\" ;; esac
+                    return 0
+                fi
+                ;;
+            3)
+                if (( r == dino_y )); then
+                    case "$dx" in 0) printf "/" ;; 1) printf "o" ;; 2) printf "o" ;; 3) printf "\\" ;; esac
+                    return 0
+                fi
+                ;;
+        esac
+    fi
+
+    return 1
+}
+
 draw() {
     local r c
 
     printf "\e[H"
-    printf "Score: %-6s Best: %-6s Speed: %-2s  Up/Space jump | Down duck | R restart | Q quit\n" "$score" "$best" "$speed_level"
+    printf "Runner: %-9s Score: %-6s Best: %-6s Speed: %-2s  Up/Space jump | Down duck | R restart | Q quit\n" "$hero_name" "$score" "$best" "$speed_level"
     printf "+"
     repeat_char "$game_w" "-"
     printf "+\n"
@@ -363,6 +460,7 @@ main() {
     clear
 
     fit_screen
+    choose_runner
     reset_game
     draw
 
