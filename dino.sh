@@ -8,6 +8,7 @@ min_delay=0.035
 tick=0
 game_over=0
 ducking=0
+dino_height=3
 
 obs_x=()
 obs_type=()
@@ -61,6 +62,10 @@ reset_game() {
     ducking=0
     dino_y=$ground_y
     jump_v=0
+    max_jump_y=$((ground_y - dino_height * 3))
+    if (( max_jump_y < 1 )); then
+        max_jump_y=1
+    fi
     obs_x=()
     obs_type=()
     next_spawn=$((18 + RANDOM % 14))
@@ -68,7 +73,7 @@ reset_game() {
 
 start_jump() {
     if (( dino_y == ground_y )); then
-        jump_v=-5
+        jump_v=-4
         ducking=0
     fi
 }
@@ -136,6 +141,11 @@ update_game() {
     if (( dino_y < ground_y || jump_v != 0 )); then
         dino_y=$((dino_y + jump_v))
         jump_v=$((jump_v + 1))
+
+        if (( dino_y < max_jump_y )); then
+            dino_y=$max_jump_y
+            jump_v=1
+        fi
 
         if (( dino_y > ground_y )); then
             dino_y=$ground_y
