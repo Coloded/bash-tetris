@@ -5,6 +5,8 @@ Two terminal games written entirely in Python, using only the standard library:
 - `tetris.py`: Tetris with a curses interface and a local SQLite player database.
 - `dino.py`: runner with three selectable characters and a curses interface.
 
+![Current Tetris gameplay](screenshots/gameplay.png)
+
 ## Requirements and launch
 
 Python 3.8+ with `curses` support on macOS or Ubuntu. No pip packages, shell
