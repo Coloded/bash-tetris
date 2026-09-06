@@ -14,16 +14,19 @@ CELL = "[]"
 DB_PATH = Path(__file__).with_name("tetris_scores.sqlite3")
 
 SHAPES = {
-    "I": [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)],
-    "O": [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)],
-    "T": [(0, 0), (1, 0), (2, 0), (1, 1), (1, 2)],
-    "S": [(0, 0), (1, 0), (1, 1), (2, 1)],
-    "Z": [(1, 0), (2, 0), (0, 1), (1, 1)],
+    "I": [(0, 0), (1, 0), (2, 0), (3, 0)],
+    "O": [(0, 0), (1, 0), (0, 1), (1, 1)],
+    "T": [(0, 0), (1, 0), (2, 0), (1, 1)],
+    "S": [(1, 0), (2, 0), (0, 1), (1, 1)],
+    "Z": [(0, 0), (1, 0), (1, 1), (2, 1)],
     "J": [(1, 0), (1, 1), (0, 2), (1, 2)],
     "L": [(0, 0), (0, 1), (0, 2), (1, 2)],
 }
 
-SCORES = {1: 1, 2: 3, 3: 6, 4: 24, 5: 120}
+SCORES = {1: 1, 2: 3, 3: 6, 4: 24}
+LOCK_DELAY = 0.4
+MAX_LOCK_RESETS = 15
+MIN_HEIGHT, MIN_WIDTH = 24, 52
 SPEEDS = {
     "1": ("Easy", 2.4),
     "2": ("Normal", 1.4),
@@ -97,36 +100,30 @@ def reset_database():
 
 def prompt(stdscr, y, x, label, hidden=False):
     chars = []
-
-    def redraw():
-        value = "*" * len(chars) if hidden else "".join(chars)
-        stdscr.move(y, x)
-        stdscr.clrtoeol()
-        safe_addstr(stdscr, y, x, label + value)
-        stdscr.move(y, x + len(label) + len(value))
-        stdscr.refresh()
-
     try:
         curses.curs_set(1)
-        curses.noecho()
         stdscr.nodelay(False)
-        redraw()
-
         while True:
+            height, width = stdscr.getmaxyx()
+            row = min(y, height - 1)
+            col = min(x, max(0, width - 2))
+            value = "*" * len(chars) if hidden else "".join(chars)
+            visible = (label + value)[-max(1, width - col - 2):]
+            stdscr.move(row, col)
+            stdscr.clrtoeol()
+            safe_addstr(stdscr, row, col, visible)
+            stdscr.move(row, min(width - 1, col + len(visible)))
+            stdscr.refresh()
             ch = stdscr.getch()
             if ch in (10, 13):
-                break
-            if ch in (27,):
-                chars = []
-                break
+                return "".join(chars)
+            if ch == 27:
+                return ""
             if ch in (curses.KEY_BACKSPACE, 127, 8):
                 if chars:
                     chars.pop()
-                    redraw()
-                continue
-            if 32 <= ch <= 126:
+            elif 32 <= ch <= 126 and len(chars) < 128:
                 chars.append(chr(ch))
-                redraw()
     except KeyboardInterrupt as exc:
         raise UserExit from exc
     finally:
@@ -135,38 +132,43 @@ def prompt(stdscr, y, x, label, hidden=False):
             curses.curs_set(0)
         except curses.error:
             pass
-        stdscr.nodelay(True)
-    return "".join(chars)
+        stdscr.nodelay(False)
 
 
 def draw_start(stdscr):
+    page = 0
     stdscr.nodelay(False)
     try:
         while True:
-            stdscr.clear()
-            safe_addstr(stdscr, 1, 2, "Bash Tetris")
-            safe_addstr(stdscr, 3, 2, "Top 100 players by best score:")
+            stdscr.erase()
+            height, width = stdscr.getmaxyx()
             rows = top_players()
-            if rows:
-                for i, (name, score) in enumerate(rows[:18], start=1):
-                    safe_addstr(stdscr, 4 + i, 2, f"{i:>3}. {name:<20} {score}")
-            else:
-                safe_addstr(stdscr, 5, 2, "No players yet.")
-            safe_addstr(stdscr, 25, 2, "Enter: choose speed")
-            safe_addstr(stdscr, 26, 2, "P: reset local database")
+            page_size = max(1, height - 7)
+            pages = max(1, (len(rows) + page_size - 1) // page_size)
+            page = min(page, pages - 1)
+            safe_addstr(stdscr, 0, 0, "Tetris - Top 100")
+            safe_addstr(stdscr, 1, 0, f"Page {page + 1}/{pages}  Left/Right: pages")
+            for i, (name, score) in enumerate(rows[page * page_size:(page + 1) * page_size]):
+                rank = page * page_size + i + 1
+                safe_addstr(stdscr, 3 + i, 0, f"{rank:3}. {name[:20]:20} {score}"[:width - 1])
+            if not rows:
+                safe_addstr(stdscr, 3, 0, "No players yet.")
+            safe_addstr(stdscr, height - 3, 0, "Enter: play   P: reset database   Q: quit")
             stdscr.refresh()
             ch = stdscr.getch()
             if ch in (10, 13):
                 return
-            if ch in (ord("p"), ord("P")):
-                answer = prompt(stdscr, 28, 2, "Delete all local players and scores? (y/n): ")
-                if answer[:1].lower() == "y":
+            if ch in (ord("q"), ord("Q")):
+                raise UserExit
+            if ch in (curses.KEY_RIGHT, curses.KEY_NPAGE):
+                page = min(page + 1, pages - 1)
+            elif ch in (curses.KEY_LEFT, curses.KEY_PPAGE):
+                page = max(0, page - 1)
+            elif ch in (ord("p"), ord("P")):
+                answer = prompt(stdscr, height - 2, 0, "Delete all players/scores? (y/n): ")
+                if answer.lower() == "y":
                     reset_database()
-                    safe_addstr(stdscr, 30, 2, "Database deleted and recreated. Top is empty now.")
-                else:
-                    safe_addstr(stdscr, 30, 2, "Database reset cancelled.")
-                safe_addstr(stdscr, 31, 2, "Press any key...")
-                stdscr.getch()
+                    page = 0
     except KeyboardInterrupt as exc:
         raise UserExit from exc
 
@@ -184,6 +186,8 @@ def choose_speed(stdscr):
             stdscr.refresh()
             ch = stdscr.getch()
             key = chr(ch) if 0 <= ch < 256 else ""
+            if key.lower() == "q":
+                raise UserExit
             if key in SPEEDS:
                 return SPEEDS[key]
     except KeyboardInterrupt as exc:
@@ -194,10 +198,10 @@ def login(stdscr):
     name_re = re.compile(r"^[A-Za-z0-9]+$")
     while True:
         stdscr.clear()
-        stdscr.addstr(1, 2, "Player login")
+        safe_addstr(stdscr, 1, 2, "Player login")
         name = prompt(stdscr, 3, 2, "Player name (A-Z, a-z, 0-9): ")
         if not name_re.match(name):
-            stdscr.addstr(5, 2, "Use only English letters and digits. Press any key...")
+            safe_addstr(stdscr, 5, 2, "Use only English letters and digits. Press any key...")
             stdscr.getch()
             continue
         existing = get_player(name)
@@ -205,12 +209,12 @@ def login(stdscr):
             pin = prompt(stdscr, 5, 2, f"PIN for {name}: ", hidden=True)
             if pin == existing[0]:
                 return name, existing[1]
-            stdscr.addstr(7, 2, "Wrong PIN. Use another name or try again. Press any key...")
+            safe_addstr(stdscr, 7, 2, "Wrong PIN. Use another name or try again. Press any key...")
             stdscr.getch()
             continue
         pin = prompt(stdscr, 5, 2, f"Create PIN for {name} (A-Z, a-z, 0-9): ", hidden=True)
         if not name_re.match(pin):
-            stdscr.addstr(7, 2, "PIN can contain only English letters and digits. Press any key...")
+            safe_addstr(stdscr, 7, 2, "PIN can contain only English letters and digits. Press any key...")
             stdscr.getch()
             continue
         create_player(name, pin)
@@ -235,6 +239,8 @@ class Game:
         self.shape = []
         self.px = 3
         self.py = 0
+        self.bag = []
+        self.next_piece_name = self.take_piece()
         self.new_piece()
 
     def log(self, message):
@@ -248,6 +254,9 @@ class Game:
         self.paused = False
         self.logs = ["Game restarted"]
         self.game_over = False
+        self.shape_stats = {name: 0 for name in SHAPES}
+        self.bag = []
+        self.next_piece_name = self.take_piece()
         self.new_piece()
 
     def save_best(self):
@@ -271,88 +280,50 @@ class Game:
                 return False
         return True
 
-    def is_solid(self, r, c):
-        if c < 0 or c >= COLS or r >= ROWS:
-            return True
-        if r < 0:
-            return False
-        return self.board[r][c] != "."
-
-    def normalized(self, shape):
-        min_x = min(x for x, _ in shape)
-        min_y = min(y for _, y in shape)
-        return tuple(sorted((x - min_x, y - min_y) for x, y in shape))
-
-    def rotations(self, shape):
-        variants = []
-        current = self.normalized(shape)
-        for _ in range(4):
-            if current not in variants:
-                variants.append(current)
-            current = self.normalized([(1 - y, x) for x, y in current])
-        return variants
-
-    def drop_y_for(self, shape, x0):
-        y = 0
-        if not self.can_place(x0, y, shape):
-            return None
-        while self.can_place(x0, y + 1, shape):
-            y += 1
-        return y
-
-    def board_after(self, piece, shape, x0, y0):
-        data = [row[:] for row in self.board]
-        for x, y in shape:
-            data[y0 + y][x0 + x] = piece
-        return data
-
-    def board_score(self, data):
-        full = sum(1 for row in data if all(cell != "." for cell in row))
-        heights = []
-        holes = 0
-        for c in range(COLS):
-            seen = False
-            height = 0
-            for r in range(ROWS):
-                if data[r][c] != ".":
-                    if not seen:
-                        height = ROWS - r
-                    seen = True
-                elif seen:
-                    holes += 1
-            heights.append(height)
-        roughness = sum(abs(heights[i] - heights[i + 1]) for i in range(COLS - 1))
-        return full * 100 - holes * 8 - max(heights) * 2 - roughness
-
-    def smart_easy_piece(self):
-        if self.level != "Easy" or not any(cell != "." for row in self.board for cell in row):
-            return None
-        best = None
-        for piece, base in SHAPES.items():
-            for shape in self.rotations(base):
-                width = max(x for x, _ in shape) + 1
-                for x0 in range(COLS - width + 1):
-                    y0 = self.drop_y_for(shape, x0)
-                    if y0 is None:
-                        continue
-                    score = self.board_score(self.board_after(piece, shape, x0, y0))
-                    if best is None or score > best[0]:
-                        best = (score, piece)
-        return best[1] if best else None
+    def take_piece(self):
+        if not self.bag:
+            self.bag = list(SHAPES)
+            random.shuffle(self.bag)
+        return self.bag.pop()
 
     def new_piece(self):
-        names = list(SHAPES)
-        easy_piece = self.smart_easy_piece()
-        self.piece_name = easy_piece or random.choice(names)
+        self.piece_name = self.next_piece_name
+        self.next_piece_name = self.take_piece()
         self.shape = SHAPES[self.piece_name][:]
         self.px = 3
         self.py = 0
         self.last_fall = time.monotonic()
+        self.lock_since = None
+        self.lock_resets = 0
         if not self.can_place(self.px, self.py, self.shape):
-            raise RuntimeError("game over")
+            self.game_over = True
+            self.save_best()
+            self.log("Game over")
+            return
         self.shape_stats[self.piece_name] += 1
-        suffix = " (Easy help)" if easy_piece else ""
-        self.log(f"Figure: {self.piece_name}{suffix}")
+        self.log(f"Figure: {self.piece_name}")
+
+    def landing_y(self):
+        y = self.py
+        while self.can_place(self.px, y + 1, self.shape):
+            y += 1
+        return y
+
+    def update_contact(self, moved=False):
+        now = time.monotonic()
+        if self.can_place(self.px, self.py + 1, self.shape):
+            self.lock_since = None
+        elif self.lock_since is None:
+            self.lock_since = now
+        elif moved and self.lock_resets < MAX_LOCK_RESETS:
+            self.lock_since = now
+            self.lock_resets += 1
+
+    def lock_piece(self):
+        for x, y in self.shape:
+            self.board[self.py + y][self.px + x] = self.piece_name
+        self.clear_lines()
+        self.new_piece()
 
     def rotate(self):
         rotated = [(1 - y, x) for x, y in self.shape]
@@ -363,16 +334,13 @@ class Game:
             if self.can_place(self.px + offset, self.py, rotated):
                 self.px += offset
                 self.shape = rotated
+                self.update_contact(moved=True)
                 return
 
     def advance(self):
         if self.can_place(self.px, self.py + 1, self.shape):
             self.py += 1
-            return
-        for x, y in self.shape:
-            self.board[self.py + y][self.px + x] = self.piece_name
-        self.clear_lines()
-        self.new_piece()
+        self.update_contact()
 
     def clear_lines(self):
         new_board = [row for row in self.board if any(cell == "." for cell in row)]
@@ -396,8 +364,11 @@ class Game:
             return True
         if ch in (ord("q"), ord("Q")):
             return False
-        if ch == ord(" "):
+        if ch in (ord("p"), ord("P")):
             self.paused = not self.paused
+            self.last_fall = time.monotonic()
+            if self.lock_since is not None:
+                self.lock_since = self.last_fall
             self.log("Pause on" if self.paused else "Pause off")
             return True
         if ch in (ord("r"), ord("R")):
@@ -405,21 +376,39 @@ class Game:
             return True
         if self.paused:
             return True
+        if ch == ord(" "):
+            self.py = self.landing_y()
+            self.lock_piece()
+            return True
         if ch in (ord("s"), ord("S"), curses.KEY_LEFT) and self.can_place(self.px - 1, self.py, self.shape):
             self.px -= 1
+            self.update_contact(moved=True)
         elif ch in (ord("f"), ord("F"), curses.KEY_RIGHT) and self.can_place(self.px + 1, self.py, self.shape):
             self.px += 1
+            self.update_contact(moved=True)
         elif ch == curses.KEY_DOWN and self.can_place(self.px, self.py + 1, self.shape):
             self.py += 1
             self.last_fall = time.monotonic()
+            self.update_contact()
         elif ch in (ord("d"), ord("D"), curses.KEY_UP):
             self.rotate()
         return True
 
     def tick(self):
-        if not self.game_over and not self.paused and time.monotonic() - self.last_fall >= self.fall_delay:
-            self.last_fall = time.monotonic()
+        if self.game_over or self.paused:
+            return
+        now = time.monotonic()
+        # Preserve the schedule across slow frames, but discard long suspensions.
+        if now - self.last_fall > self.fall_delay * 3:
+            self.last_fall = now - self.fall_delay
+            if self.lock_since is not None:
+                self.lock_since = now
+        while now - self.last_fall >= self.fall_delay:
+            self.last_fall += self.fall_delay
             self.advance()
+        self.update_contact()
+        if self.lock_since is not None and now - self.lock_since >= LOCK_DELAY:
+            self.lock_piece()
 
     def draw_cell(self, y, x, piece):
         if piece == ".":
@@ -428,51 +417,45 @@ class Game:
         color = curses.color_pair(PIECE_COLORS[piece])
         safe_addstr(self.stdscr, y, x, CELL, color)
 
+    def screen_fits(self):
+        height, width = self.stdscr.getmaxyx()
+        return height >= MIN_HEIGHT and width >= MIN_WIDTH
+
     def draw(self):
         s = self.stdscr
         s.erase()
-        safe_addstr(s, 1, 2, "+------------------------------------+")
-        safe_addstr(s, 2, 2, "| Controls                           |")
-        safe_addstr(s, 3, 2, "+------------------------------------+")
-        controls = [
-            "S / Left  : move left",
-            "F / Right : move right",
-            "D / Up    : rotate",
-            "Down      : move down",
-            "Space     : pause / resume",
-            "R         : restart",
-            "Q         : quit",
-        ]
-        for i, text in enumerate(controls, 4):
-            safe_addstr(s, i, 2, f"| {text:<34} |")
-        safe_addstr(s, 11, 2, "+------------------------------------+")
-        safe_addstr(s, 12, 2, "| Event log                          |")
-        safe_addstr(s, 13, 2, "+------------------------------------+")
-        stat_lines = ["", "Stats:"] + [f"{k}: {self.shape_stats[k]}" for k in SHAPES]
-        visible = (self.logs + stat_lines)[-28:]
-        for i in range(28):
-            text = visible[i] if i < len(visible) else ""
-            safe_addstr(s, 14 + i, 2, f"| {text[:34]:<34} |")
-        safe_addstr(s, 42, 2, "+------------------------------------+")
-
-        ox, oy = 44, 1
+        height, width = s.getmaxyx()
+        if not self.screen_fits():
+            safe_addstr(s, 0, 0, "Paused: enlarge terminal to 52x24. Q: quit")
+            s.refresh()
+            return
         state = "GAME OVER" if self.game_over else ("PAUSED" if self.paused else "Playing")
-        safe_addstr(s, oy, ox, f"Score: {self.score}   Best: {self.best}   Speed: {self.level}   {state}")
-        safe_addstr(s, oy + 1, ox, "+" + "-" * (COLS * 2) + "+")
-        active = self.occupied()
+        safe_addstr(s, 0, 0, "+" + "-" * (COLS * 2) + "+")
+        active = self.occupied() if not self.game_over else set()
+        ghost = {(self.px + x, self.landing_y() + y) for x, y in self.shape} if not self.game_over else set()
         for r in range(ROWS):
-            safe_addstr(s, oy + 2 + r, ox, "|")
+            safe_addstr(s, r + 1, 0, "|")
             for c in range(COLS):
                 piece = self.piece_name if (c, r) in active else self.board[r][c]
-                self.draw_cell(oy + 2 + r, ox + 1 + c * 2, piece)
-            safe_addstr(s, oy + 2 + r, ox + 1 + COLS * 2, "|")
-        if self.paused:
-            safe_addstr(s, oy + 11, ox + 8, "PAUSE", curses.A_REVERSE)
-        if self.game_over:
-            safe_addstr(s, oy + 10, ox + 5, "GAME OVER", curses.A_REVERSE)
-            safe_addstr(s, oy + 12, ox + 3, "R restart / Q quit")
-        safe_addstr(s, oy + 2 + ROWS, ox, "+" + "-" * (COLS * 2) + "+")
-        safe_addstr(s, oy + 4 + ROWS, ox, f"Status: {state}")
+                if piece == "." and (c, r) in ghost:
+                    safe_addstr(s, r + 1, 1 + c * 2, "..", curses.A_DIM)
+                else:
+                    self.draw_cell(r + 1, 1 + c * 2, piece)
+            safe_addstr(s, r + 1, 21, "|")
+        safe_addstr(s, 21, 0, "+" + "-" * (COLS * 2) + "+")
+        safe_addstr(s, 22, 0, f"Score:{self.score} Best:{self.best}"[:22])
+        if self.paused or self.game_over:
+            safe_addstr(s, 10, 5, state, curses.A_REVERSE)
+        panel = [f"{self.level} - {state}", f"Next: {self.next_piece_name}"]
+        preview = set(SHAPES[self.next_piece_name])
+        panel += ["".join("[]" if (x, y) in preview else "  " for x in range(4)) for y in range(4)]
+        panel += ["Left/Right: move", "Up: rotate  Down: soft drop",
+                  "Space: hard drop", "P:pause R:restart Q:quit", "Stats:",
+                  " ".join(f"{k}:{self.shape_stats[k]}" for k in ("I", "O", "T", "S")),
+                  " ".join(f"{k}:{self.shape_stats[k]}" for k in ("Z", "J", "L")), "Events:"]
+        panel += self.logs[-max(1, height - len(panel) - 1):]
+        for y, text in enumerate(panel):
+            safe_addstr(s, y, 24, text[:width - 25])
         s.refresh()
 
 
@@ -513,16 +496,22 @@ def run(stdscr):
     try:
         running = True
         while running:
+            frame_start = time.monotonic()
             ch = stdscr.getch()
-            if ch != -1:
-                running = game.handle_key(ch)
-            try:
-                game.tick()
-            except RuntimeError:
-                game.game_over = True
-                game.save_best()
-                game.log("Game over")
+            if not game.screen_fits():
+                # Resizing suspends both timers without changing the user's pause.
+                game.last_fall = time.monotonic()
+                if game.lock_since is not None:
+                    game.lock_since = game.last_fall
+                running = ch not in (ord("q"), ord("Q"))
+            else:
+                if ch != -1:
+                    running = game.handle_key(ch)
+                if running:
+                    game.tick()
             game.draw()
+            # Bound rendering and CPU usage even when getch() returns instantly.
+            time.sleep(max(0.0, 1 / 30 - (time.monotonic() - frame_start)))
     except (KeyboardInterrupt, UserExit):
         result = "Interrupted."
 
